@@ -18,6 +18,9 @@
 	<script src="components/platform/platform.js">
 	</script>
 
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js">
+	</script>
+
 	<link rel="import" 
 		href="components/core-toolbar/core-toolbar.html">
 	<link rel="import" 
@@ -29,17 +32,21 @@
 	<link rel="import" 
 		href="components/core-drawer-panel/core-drawer-panel.html">
 	<link rel="import"
-		href="../../components/paper-icon-button/paper-icon-button.html">
+		href="components/paper-icon-button/paper-icon-button.html">
+	<link rel="import" 
+		href="components/core-icons/core-icons.html">
+	<link rel="import" 
+		href="components/core-icon-button/core-icon-button.html">
 	<link rel="import" 
 		href="components/core-scaffold/core-scaffold.html">
 	<link rel="import" 
 		href="components/core-animated-pages.html">
 	<link rel="stylesheet" type="text/css"
 		href="f.css">
-
 </head>
 
 <body fullbleed unresolved>
+
 
 	<core_header_panel>
 		<core-toolbar id="mainheader" class="medium">
@@ -55,13 +62,11 @@
 		</core-toolbar>
 	</core_header_panel>
 
-	</div>
-	<div id="file">
-		<input id="file-input" type="file">File</input>
+	<div id="users" >
+
 	</div>
 
 <script>
-
 var pendingSends = {}, pendingRecieves = {};
 
 var socket = io('localhost:8888');
@@ -71,19 +76,41 @@ var fileInput = document.getElementById("file-input");
 fileInput.onchange = function() {
 
 };
+
+socket.emit('get-friends', {});
+
+socket.on('get-friends', function(data) {
+	for(var usr in data) {
+		$("#users").append("<div style='width: 250px; height: 150px; float: left; padding: 10px 10px 10px 10px;'><div id='"+usr.id+"'style='width: 250px; height: 150px; float: left;'><paper-shadow z='1'></paper-shadow> "+usr.name+"</div></div>");
+	}
+});
+
+function addEventHandler(obj, evt, handler) {
+    if(obj.addEventListener) {
+        // W3C method
+        obj.addEventListener(evt, handler, false);
+    } else if(obj.attachEvent) {
+        // IE method.
+        obj.attachEvent('on'+evt, handler);
+    } else {
+        // Old school method.
+        obj['on'+evt] = handler;
+    }
+}
+
 //startButton.onclick = createConnection;
 //sendButton.onclick = sendData;
 //closeButton.onclick = closeDataChannels;
 
 /*
-   sender starts RTC sending client
-   sender notifies receiver (sends SDP info)
-   receiving user accepts file
-   receiving client opens RTC and sends SDP data
-   receiving client sends req-file
-   sending client starts RTC receiving client from SDP data
-   sending client sends file over RTC
-   */
+	 sender starts RTC sending client
+	 sender notifies receiver (sends SDP info)
+	 receiving user accepts file
+	 receiving client opens RTC and sends SDP data
+	 receiving client sends req-file
+	 sending client starts RTC receiving client from SDP data
+	 sending client sends file over RTC
+	 */
 
 //sender wants to send a file
 socket.on('notify-sending', function(data) {
@@ -148,7 +175,7 @@ socket.on('req-file', function(data) {
 			data.last = true;
 		}
 
-		sendData(JSON.stringify(data)); // use JSON.stringify for chrome!  
+		sendData(JSON.stringify(data)); // use JSON.stringify for chrome!	
 
 		var remainingDataURL = text.slice(data.message.length);
 		if (remainingDataURL.length) setTimeout(function () {
@@ -157,7 +184,19 @@ socket.on('req-file', function(data) {
 	}
 });
 
+io.on('invalid-login', function(data) {
+	if (data.err === "") {
 
+	} else if (data.err === "") {
+
+	} else if (data.err === "") {
+
+	}
+});
+
+io.on('error', function(data) {
+	
+});
 
 
 
