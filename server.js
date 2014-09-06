@@ -1,0 +1,48 @@
+var app = require("http").createServer(handler);
+var io = require("socket.io")(app);
+var fs = require("fs");
+var url = require("url");
+//var az = require("azure");
+
+app.listen(8888);
+
+var users = {};
+
+function handler(req, res) {
+	fs.readFile(url.parse(req.url).pathname.slice(1),
+	function (err, data) {
+		if (err) {
+			console.log(url.parse(req.url).pathname.slice(1));
+			res.writeHead(500);
+			return res.end("Error loading page");
+		}
+		res.writeHead(200);
+		res.end(data);
+	});
+}
+
+io.on('connection', function(socket) {
+	console.log('Connected');
+	var nick;
+	socket.on("set-nick", function(data) {
+		console.log('User ' + nick + 'added');
+		users[data.nick] = {"socket": socket};
+		nick = data.nick;
+	});
+
+	socket.on("send-file", function(data) {
+		users[data.to].socket.emit("recieve-file", data.data);
+	});
+
+	socket.on("disconnect", function(data) {
+		console.log('User ' + nick + 'removed');
+		delete users[nick];
+	});
+
+	//pass on some messages
+	for (var msg in ['req-file', 'recieve-cancelled', 'notify-sending', 'send-cancelled']) {
+		socket.on(msg, function(data) {
+			users[data.to].socket.emit(msg, data);
+		});
+	}
+});

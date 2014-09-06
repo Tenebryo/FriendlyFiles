@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta name="keywords" content="JavaScript, WebRTC, fileshare" />
+<meta name="description" content="Quick fileshare with friends." />
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1">
+
+<title>Friendly Files</title>
+
+<style>
+</style>
+
+	<script src="socket.io/socket.io.js">
+	</script>
+
+	<script src="components/platform/platform.js">
+	</script>
+
+	<link rel="import" 
+		href="components/core-toolbar/core-toolbar.html">
+	<link rel="import" 
+		href="components/core-menu/core-menu.html">
+	<link rel="import" 
+		href="components/core-item/core-item.html">
+	<link rel="import" 
+		href="components/core-header-panel/core-header-panel.html">
+	<link rel="import" 
+		href="components/core-drawer-panel/core-drawer-panel.html">
+	<link rel="import"
+		href="../../components/paper-icon-button/paper-icon-button.html">
+	<link rel="import" 
+		href="components/core-scaffold/core-scaffold.html">
+	<link rel="import" 
+		href="components/core-animated-pages.html">
+	<link rel="stylesheet" type="text/css"
+		href="f.css">
+
+</head>
+
+<body fullbleed unresolved>
+
+	<core_header_panel>
+		<core-toolbar id="mainheader" class="medium">
+			<paper-shadow z="3"></paper-shadow>
+			<paper-icon-button id="navicon" icon="menu">
+			</paper-icon-button>
+
+			<span flex>Friendly Files</span>
+
+			<paper-icon-button id="searchbutton" icon="search">
+			</paper-icon-button>
+
+		</core-toolbar>
+	</core_header_panel>
+
+	</div>
+	<div id="file">
+		<input id="file-input" type="file">File</input>
+	</div>
+
+<script>
+
+var pendingSends = {}, pendingRecieves = {};
+
+var socket = io('localhost:8888');
+
+var fileInput = document.getElementById("file-input");
+
+fileInput.onchange = function() {
+
+};
+//startButton.onclick = createConnection;
+//sendButton.onclick = sendData;
+//closeButton.onclick = closeDataChannels;
+
+/*
+   sender starts RTC sending client
+   sender notifies receiver (sends SDP info)
+   receiving user accepts file
+   receiving client opens RTC and sends SDP data
+   receiving client sends req-file
+   sending client starts RTC receiving client from SDP data
+   sending client sends file over RTC
+   */
+
+//sender wants to send a file
+socket.on('notify-sending', function(data) {
+	pendingRecieves[data.sender] = {data.id : true};
+});
+
+//sender canceled
+socket.on('send-cancelled', function(data) {
+	
+});
+
+//user requests file from sender
+function req_send(sender) {
+	socket.emit('req-file', {'to' : sender});
+}
+
+//user canceled receive
+function send_cancel(sender) {
+	socket.emit('recieve-cancelled', {'to' : sender});
+}
+
+//sending client gets acknowledgement
+socket.on('recieve-req-acknowledged', function(data) {
+});
+
+//recieving user canceled
+socket.on('recieve-cancelled', function(data) {
+	
+});
+
+//sending user requested to send file
+function req_send_file(recipient) {
+	createConnection(data.remote_address);
+	socket.emit('notify-sending', {'to' : recipient});
+}
+
+//sending user canceled send
+function send_send_cancel(recipient) {
+	socket.emit('send-cancelled', {'to' : recipient});
+}
+
+//sending client requested to actually send file
+socket.on('req-file', function(data) {
+	
+	var file; //TODO get file descriptor
+
+	var reader = new window.FileReader();
+	reader.readAsDataUrl(file);
+	reader.onload = onReadAsDataUrl;
+
+	var chunkLength = 1000;
+
+	function onReadAsDataURL(event, text) {
+		var data = {}; // data object to transmit over data channel
+
+		if (event) text = event.target.result; // on first invocation
+
+		if (text.length > chunkLength) {
+			data.message = text.slice(0, chunkLength); // getting chunk using predefined chunk length
+		} else {
+			data.message = text;
+			data.last = true;
+		}
+
+		sendData(JSON.stringify(data)); // use JSON.stringify for chrome!  
+
+		var remainingDataURL = text.slice(data.message.length);
+		if (remainingDataURL.length) setTimeout(function () {
+			onReadAsDataURL(null, remainingDataURL); // continue transmitting
+		}, 500)
+	}
+});
+
+
+
+
+
+//WebRTC Stuff
+
+function trace(text) {
+	console.log((performance.now() / 1000).toFixed(3) + ": " + text);
+}
+
+function createConnection(remote_peer) {
+	createSendConn();
+	createReceiveConn(remote_peer);
+}
+
+function creatSendConn() {
+
+	var servers = null;
+	window.localPeerConnection = new webkitRTCPeerConnection(servers,
+		{optional: [{RtpDataChannels: true}]});
+	trace('Created local peer connection object localPeerConnection');
+
+	try {
+		// Reliable Data Channels not yet supported in Chrome
+		sendChannel = localPeerConnection.createDataChannel("sendDataChannel",
+			{reliable: false});
+		trace('Created send data channel');
+	} catch (e) {
+		alert('Failed to create data channel. ' +
+					'You need Chrome M25 or later with RtpDataChannel enabled');
+		trace('createDataChannel() failed with exception: ' + e.message);
+	}
+	localPeerConnection.onicecandidate = gotLocalCandidate;
+	sendChannel.onopen = handleSendChannelStateChange;
+	sendChannel.onclose = handleSendChannelStateChange;
+}
+
+function createReceiveConn(remote_peer) {
+
+	window.remotePeerConnection = new webkitRTCPeerConnection(servers,
+		{optional: [{RtpDataChannels: true}]});
+	trace('Created remote peer connection object remotePeerConnection');
+
+	remotePeerConnection.onicecandidate = gotRemoteIceCandidate;
+	remotePeerConnection.ondatachannel = gotReceiveChannel;
+
+	localPeerConnection.createOffer(gotLocalDescription,handleError);
+//	startButton.disabled = true;
+//	closeButton.disabled = false;
+}
+
+function sendData(data) {
+//	var data = document.getElementById("dataChannelSend").value;
+	sendChannel.send(data);
+	trace('Sent data: ' + data);
+}
+
+function closeDataChannels() {
+	trace('Closing data channels');
+	sendChannel.close();
+	trace('Closed data channel with label: ' + sendChannel.label);
+	receiveChannel.close();
+	trace('Closed data channel with label: ' + receiveChannel.label);
+	localPeerConnection.close();
+	remotePeerConnection.close();
+	localPeerConnection = null;
+	remotePeerConnection = null;
+	trace('Closed peer connections');
+//	startButton.disabled = false;
+//	sendButton.disabled = true;
+//	closeButton.disabled = true;
+//	dataChannelSend.value = "";
+//	dataChannelReceive.value = "";
+//	dataChannelSend.disabled = true;
+//	dataChannelSend.placeholder = "Press Start, enter some text, then press Send.";
+}
+
+function gotLocalDescription(desc) {
+	localPeerConnection.setLocalDescription(desc);
+	trace('Offer from localPeerConnection \n' + desc.sdp);
+	remotePeerConnection.setRemoteDescription(desc);
+	remotePeerConnection.createAnswer(gotRemoteDescription,handleError);
+}
+
+function gotRemoteDescription(desc) {
+	remotePeerConnection.setLocalDescription(desc);
+	trace('Answer from remotePeerConnection \n' + desc.sdp);
+	localPeerConnection.setRemoteDescription(desc);
+}
+
+function gotLocalCandidate(event) {
+	trace('local ice callback');
+	if (event.candidate) {
+		remotePeerConnection.addIceCandidate(event.candidate);
+		trace('Local ICE candidate: \n' + event.candidate.candidate);
+	}
+}
+
+function gotRemoteIceCandidate(event) {
+	trace('remote ice callback');
+	if (event.candidate) {
+		localPeerConnection.addIceCandidate(event.candidate);
+		trace('Remote ICE candidate: \n ' + event.candidate.candidate);
+	}
+}
+
+function gotReceiveChannel(event) {
+	trace('Receive Channel Callback');
+	receiveChannel = event.channel;
+	receiveChannel.onmessage = handleMessage;
+	receiveChannel.onopen = handleReceiveChannelStateChange;
+	receiveChannel.onclose = handleReceiveChannelStateChange;
+}
+
+function handleMessage(event) {
+	trace('Received message: ' + event.data);
+//	document.getElementById("dataChannelReceive").value = event.data;
+	var arrayToStoreChunks = [];
+	dataChannel.onmessage = function (event) {
+		var data = JSON.parse(event.data);
+
+		arrayToStoreChunks.push(data.message); // pushing chunks in array
+
+		if (data.last) {
+			saveToDisk(arrayToStoreChunks.join(''), 'fake fileName');
+			arrayToStoreChunks = []; // resetting array
+		}
+	};
+}
+
+function handleSendChannelStateChange() {
+	var readyState = sendChannel.readyState;
+	trace('Send channel state is: ' + readyState);
+	if (readyState == "open") {
+		dataChannelSend.disabled = false;
+		dataChannelSend.focus();
+		dataChannelSend.placeholder = "";
+		sendButton.disabled = false;
+		closeButton.disabled = false;
+	} else {
+		dataChannelSend.disabled = true;
+		sendButton.disabled = true;
+		closeButton.disabled = true;
+	}
+}
+
+function handleReceiveChannelStateChange() {
+	var readyState = receiveChannel.readyState;
+	trace('Receive channel state is: ' + readyState);
+}
+
+function handleError(){}
+
+</script>
+
+</body>
+
+</html>
