@@ -3,7 +3,7 @@ var io = require("socket.io")(app);
 var fs = require("fs");
 var url = require("url");
 var mongo = require("mongodb");
-var pswrdHSH = require("./lib/password-hash");
+var pswrdHSH = require("password-hash");
 //var az = require("azure");
 
 app.listen(8888);
@@ -11,13 +11,17 @@ app.listen(8888);
 var users = {};
 mongoclient = mongo.MongoClient;
 mongodb = null
-while (!mongodb) {
-	mongoClient.connect("mongodb://localhost:27017/friendlyfiles", function(err, db) {
+console.log("Initializing MongoDB");
+function MongoSetup() {
+	mongoclient.connect("mongodb://localhost:27017/friendlyfiles", function(err, db) {
 		if(err) return;
 		db.createCollection('users');
 		mongodb = db;
 	});
+	if(!mongodb) console.log("MongoDB setup failed! Retrying...");
+	setTimeout(MongoSetup, 3000);
 }
+console.log("MongoDB (finally) setup");
 
 function handler(req, res) {
 	fs.readFile(url.parse(req.url).pathname.slice(1),
@@ -33,6 +37,7 @@ function handler(req, res) {
 }
 
 io.on('connection', function(socket) {
+
 	console.log('Connected');
 	var nick;
 	socket.on("log-in", function(data) {
@@ -40,7 +45,7 @@ io.on('connection', function(socket) {
 		mongodb.collection('users', function(err, col) {
 			col.findOne({_id: data.name}, function(err, item) {
 				if (err) socket.emit('invalid-login', {err: "User does not exist"});
-				if (pswrdHSH.generate(data.pswrd) !== ) socket.emit('invalid-login', {err: "Invalid username or password"});
+				if (pswrdHSH.generate(data.pswrd) !== item.pswrd_hsh) socket.emit('invalid-login', {err: "Invalid username or password"});
 
 				nick = data.name;
 				console.log('User ' + nick + ' logged in');
@@ -64,7 +69,10 @@ io.on('connection', function(socket) {
 	socket.on("add-friend", function(data) {
 		if(!mongodb) socket.emit('error', {err: "The database appears to be down..."});
 		mongodb.collection('users', function(err, col) {
-			col.update({_id: nick}, {"$pushAll": [data.name]} function(err, item) {});
+			col.update({_id: nick}, {"$pushAll": [data.name]}, function(err, item) {
+				if (err) console.log("Adding friend " + data.name + " to " + nick + "'s friend list failed.");
+				console.log("Adding friend " + data.name + " to " + nick + "'s friend list faile");
+			});
 		});
 	});
 
@@ -72,7 +80,7 @@ io.on('connection', function(socket) {
 		if(!mongodb) socket.emit('error', {err: "The database appears to be down..."});
 		mongodb.collection('users', function(err, col) {
 			col.findOne({'_id': nick}, function(err, item) {
-				socket.emit(
+				socket.emit('get-friends', {friends: item.friends});
 			});
 		});
 	});
@@ -85,6 +93,7 @@ io.on('connection', function(socket) {
 	//pass on some messages
 	for (var msg in ['req-file', 'recieve-cancelled', 'notify-sending', 'send-cancelled']) {
 		socket.on(msg, function(data) {
+			data.from_ip = socket.request.connection.remoteAddress;
 			users[data.to].socket.emit(msg, data);
 		});
 	}

@@ -27,6 +27,8 @@
 		href="components/core-menu/core-menu.html">
 	<link rel="import" 
 		href="components/core-item/core-item.html">
+	<link rel="import"
+		href="components/paper-button/paper-button.html">
 	<link rel="import" 
 		href="components/core-header-panel/core-header-panel.html">
 	<link rel="import" 
@@ -39,14 +41,11 @@
 		href="components/core-icon-button/core-icon-button.html">
 	<link rel="import" 
 		href="components/core-scaffold/core-scaffold.html">
-	<link rel="import" 
-		href="components/core-animated-pages.html">
 	<link rel="stylesheet" type="text/css"
 		href="f.css">
 </head>
 
 <body fullbleed unresolved>
-
 
 	<core_header_panel>
 		<core-toolbar id="mainheader" class="medium">
@@ -55,9 +54,11 @@
 			</paper-icon-button>
 
 			<span flex>Friendly Files</span>
-
-			<paper-icon-button id="searchbutton" icon="search">
-			</paper-icon-button>
+				<paper-input id="add_usr" style="width: 75;"></paper-input>
+				<paper-button id="add_usr_btn" style="width: 75;">Add Friend</paper-button>
+				<paper-input id="usrnm" label="Username" style="width: 75;"></paper-input>
+				<paper-input type="password" id="usrpswrd" label="Password" style="width: 75;"></paper-input>
+				<paper-button id="login_btn" style="width: 75;">Log In</paper-button>
 
 		</core-toolbar>
 	</core_header_panel>
@@ -71,20 +72,24 @@ var pendingSends = {}, pendingRecieves = {};
 
 var socket = io('localhost:8888');
 
-var fileInput = document.getElementById("file-input");
-
-fileInput.onchange = function() {
-
+var addUserBtn = document.getElementById("add_usr_btn");
+addUserBtn.onclick = function() {
+	socket.emit('add-friend', {name: document.getElementById("add_usr").value});
+};
+var loginBtn = document.getElementById("login_btn");
+loginBtn.onclick = function() {
+	socket.emit('log-in', {name: document.getElementById("usrnm").value, pswrd: document.getElementById("usrpswrd").value});
 };
 
-socket.emit('get-friends', {});
-
 socket.on('get-friends', function(data) {
-	for(var usr in data) {
+	for(var usr in data.friends) {
 		$("#users").append("<div style='width: 250px; height: 150px; float: left; padding: 10px 10px 10px 10px;'><div id='"+usr.id+"'style='width: 250px; height: 150px; float: left;'><paper-shadow z='1'></paper-shadow> "+usr.name+"</div></div>");
 	}
 });
 
+socket.emit('get-friends', {});
+
+//For dropfiles
 function addEventHandler(obj, evt, handler) {
     if(obj.addEventListener) {
         // W3C method
