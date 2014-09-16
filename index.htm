@@ -12,37 +12,35 @@
 <style>
 </style>
 
+	<script src="components/platform/platform.js">
+	</script>
+
 	<script src="socket.io/socket.io.js">
 	</script>
 
-	<script src="components/platform/platform.js">
+	<script src="http://cdn.peerjs.com/0.3/peer.js">
 	</script>
 
 	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js">
 	</script>
 
-	<link rel="import" 
-		href="components/core-toolbar/core-toolbar.html">
-	<link rel="import" 
-		href="components/core-menu/core-menu.html">
-	<link rel="import" 
-		href="components/core-item/core-item.html">
-	<link rel="import"
-		href="components/paper-button/paper-button.html">
-	<link rel="import" 
-		href="components/core-header-panel/core-header-panel.html">
-	<link rel="import" 
-		href="components/core-drawer-panel/core-drawer-panel.html">
-	<link rel="import"
-		href="components/paper-icon-button/paper-icon-button.html">
-	<link rel="import" 
-		href="components/core-icons/core-icons.html">
-	<link rel="import" 
-		href="components/core-icon-button/core-icon-button.html">
-	<link rel="import" 
-		href="components/core-scaffold/core-scaffold.html">
-	<link rel="stylesheet" type="text/css"
-		href="f.css">
+	<script src="FileSaver.js">
+	</script>
+
+	<link rel="import" href="./components/core-toolbar/core-toolbar.html">
+	<link rel="import" href="./components/core-menu/core-menu.html">
+	<link rel="import" href="./components/core-item/core-item.html">
+	<link rel="import" href="./components/core-header-panel/core-header-panel.html">
+	<link rel="import" href="./components/core-drawer-panel/core-drawer-panel.html">
+	<link rel="import" href="./components/core-icons/core-icons.html">
+	<link rel="import" href="./components/core-icon-button/core-icon-button.html">
+	<link rel="import" href="./components/core-scaffold/core-scaffold.html">
+	<link rel="import" href="./components/paper-icon-button/paper-icon-button.html">
+	<link rel="import" href="./components/paper-button/paper-button.html">
+	<!--<link rel="import" href="./components/bower_components/paper-dialog/paper-dialog.html">
+	<link rel="import" href="./components/bower_components/paper-dialog/paper-dialog-transition.html">-->
+
+	<link rel="stylesheet" type="text/css" href="f.css">
 </head>
 
 <body fullbleed unresolved>
@@ -54,40 +52,134 @@
 			</paper-icon-button>
 
 			<span flex>Friendly Files</span>
-				<paper-input id="add_usr" style="width: 75;"></paper-input>
-				<paper-button id="add_usr_btn" style="width: 75;">Add Friend</paper-button>
-				<paper-input id="usrnm" label="Username" style="width: 75;"></paper-input>
-				<paper-input type="password" id="usrpswrd" label="Password" style="width: 75;"></paper-input>
-				<paper-button id="login_btn" style="width: 75;">Log In</paper-button>
+			<input id="add_usr" style="width: 75;"></input>
+			<button id="add_usr_btn" style="width: 75;">Add Friend</button>
+			<input id="usrnm" placeholder="Username" style="width: 75;"></input>
+			<input type="password" id="usrpswrd" placeholder="Password" style="width: 75;"></input>
+			<button id="login_btn" style="width: 75;">Log In</button>
+			<button id="signup_btn" style="width: 75;">Sign Up</button>
+			<button id="logout_btn" style="width: 75; visibility: hidden">Log Out</button>
 
 		</core-toolbar>
 	</core_header_panel>
 
-	<div id="users" >
+	<div id="users">
 
 	</div>
 
 <script>
-var pendingSends = {}, pendingRecieves = {};
+var url = 'localhost:8888';
+var reader = null;
+var filename = "";
 
-var socket = io('localhost:8888');
+var peer = null;
+
+var socket = io(url);
+
+socket.on('session-auth', function(data) {
+	console.log("Session auth complete");
+	peer = new Peer(data.key, {key: data.APIKey});
+	peer.on('connection', function(conn) {
+		conn.on('data', function(data) {
+			console.log(data);
+			saveAs(data, filename);
+		});
+	});
+});
 
 var addUserBtn = document.getElementById("add_usr_btn");
 addUserBtn.onclick = function() {
-	socket.emit('add-friend', {name: document.getElementById("add_usr").value});
+	socket.emit('add-friend', {name: $("#add_usr").val()});
+	$("#add_usr").val("");
 };
 var loginBtn = document.getElementById("login_btn");
 loginBtn.onclick = function() {
-	socket.emit('log-in', {name: document.getElementById("usrnm").value, pswrd: document.getElementById("usrpswrd").value});
+	console.log("Log In");
+	var un = document.getElementById("usrnm");
+	var ps = document.getElementById("usrpswrd");
+	socket.emit('log-in', {name: un.value, pswrd: ps.value});
+	un.value = "";
+	ps.value = "";
+};
+var signupBtn = document.getElementById("signup_btn");
+signupBtn.onclick = function() {
+	console.log("Sign Up");
+	var un = document.getElementById("usrnm");
+	var ps = document.getElementById("usrpswrd");
+	socket.emit('new-user', {name: un.value, pswrd: ps.value});
+	un.value = "";
+	ps.value = "";
 };
 
-socket.on('get-friends', function(data) {
-	for(var usr in data.friends) {
-		$("#users").append("<div style='width: 250px; height: 150px; float: left; padding: 10px 10px 10px 10px;'><div id='"+usr.id+"'style='width: 250px; height: 150px; float: left;'><paper-shadow z='1'></paper-shadow> "+usr.name+"</div></div>");
-	}
+$("#logout_btn").click(function() {
+	console.log("Logged out");
+	socket.disconnect();
+	socket = null;
+	socket = io.connect(url);
+	$("#usrnm").show();
+	$("#usrpswrd").show();
+	$("#login_btn").show();
+	$("#signup_btn").show();
+	$("#logout_btn").hide();
+
 });
 
-socket.emit('get-friends', {});
+//create new list of people from data from the server
+socket.on('get-friends', function(data) {
+
+	$("#users").contents().remove();
+	for(var i in data.friends) {
+		$("#users").append("<div style='width: 250px; height: 150px; float: left; padding: 10px 10px 10px 10px;'><div id='s_"+data.friends[i]+"' align='center' style='width: 250px; height: 150px; float: left; position: absolute;'><div align='center' style='width: 250px; height: 150px; float: left; position: absolute;'><paper-shadow z='1'></paper-shadow> "+data.friends[i]+"</div><div id='"+data.friends[i]+"' align='right' style='width: 250px; height: 150px; position: absolute;'><paper-icon-button id='"+data.friends[i]+"btn' icon='cloud-download' disabled='true'></paper-icon-button></div></div>");
+
+
+
+
+		var holder = document.getElementById(data.friends[i]),
+		    state = document.getElementById('s_'+data.friends[i]);
+	
+		if (typeof window.FileReader === 'undefined') {
+			state.className = 'fail';
+		} else {
+			state.className = 'success';
+			//state.innerHTML = 'File API & FileReader available';
+		}
+	
+		holder.ondragover = function () { this.className = 'hover'; return false; };
+		holder.ondragend = function () { this.className = ''; return false; };
+		holder.ondrop = function (e) {
+			this.className = '';
+			e.preventDefault();
+	
+			var file = e.dataTransfer.files[0],
+			    reader = new FileReader();
+			console.log(file);
+	
+			socket.on('get-remote-session-id:'+data.friends[i], function(data2) {
+				var conn = peer.connect(data2.session);
+				if(!conn) {console.log(data, data2, conn); return;}
+				conn.on('open', function() {
+						
+					reader.onload = function(){
+						conn.send(reader.result);
+					};
+	
+					reader.readAsDataURL(file);
+				});
+			});
+
+			socket.emit('request-remote-session-id', {to: data.friends[i], filename:file.name});
+	
+	
+			return false;
+		};
+		
+		$("#usrnm").hide();
+		$("#usrpswrd").hide();
+		$("#login_btn").hide();
+		$("#signup_btn").hide();
+		$("#logout_btn").show();
+	}
+});
 
 //For dropfiles
 function addEventHandler(obj, evt, handler) {
@@ -103,249 +195,14 @@ function addEventHandler(obj, evt, handler) {
     }
 }
 
-//startButton.onclick = createConnection;
-//sendButton.onclick = sendData;
-//closeButton.onclick = closeDataChannels;
-
-/*
-	 sender starts RTC sending client
-	 sender notifies receiver (sends SDP info)
-	 receiving user accepts file
-	 receiving client opens RTC and sends SDP data
-	 receiving client sends req-file
-	 sending client starts RTC receiving client from SDP data
-	 sending client sends file over RTC
-	 */
-
-//sender wants to send a file
-socket.on('notify-sending', function(data) {
-	pendingRecieves[data.sender] = {data.id : true};
+socket.on('request-file-transfer', function(data) {
+	filename = data.filename;
+	$("#"+data.name+"btn").removeAttr("disabled");
+	$("#"+data.name+"btn").click(function() {
+		socket.emit('send-remote-session-id', {to: data.name});
+		$(this).attr("disabled", "disabled");
+	});
 });
-
-//sender canceled
-socket.on('send-cancelled', function(data) {
-	
-});
-
-//user requests file from sender
-function req_send(sender) {
-	socket.emit('req-file', {'to' : sender});
-}
-
-//user canceled receive
-function send_cancel(sender) {
-	socket.emit('recieve-cancelled', {'to' : sender});
-}
-
-//sending client gets acknowledgement
-socket.on('recieve-req-acknowledged', function(data) {
-});
-
-//recieving user canceled
-socket.on('recieve-cancelled', function(data) {
-	
-});
-
-//sending user requested to send file
-function req_send_file(recipient) {
-	createConnection(data.remote_address);
-	socket.emit('notify-sending', {'to' : recipient});
-}
-
-//sending user canceled send
-function send_send_cancel(recipient) {
-	socket.emit('send-cancelled', {'to' : recipient});
-}
-
-//sending client requested to actually send file
-socket.on('req-file', function(data) {
-	
-	var file; //TODO get file descriptor
-
-	var reader = new window.FileReader();
-	reader.readAsDataUrl(file);
-	reader.onload = onReadAsDataUrl;
-
-	var chunkLength = 1000;
-
-	function onReadAsDataURL(event, text) {
-		var data = {}; // data object to transmit over data channel
-
-		if (event) text = event.target.result; // on first invocation
-
-		if (text.length > chunkLength) {
-			data.message = text.slice(0, chunkLength); // getting chunk using predefined chunk length
-		} else {
-			data.message = text;
-			data.last = true;
-		}
-
-		sendData(JSON.stringify(data)); // use JSON.stringify for chrome!	
-
-		var remainingDataURL = text.slice(data.message.length);
-		if (remainingDataURL.length) setTimeout(function () {
-			onReadAsDataURL(null, remainingDataURL); // continue transmitting
-		}, 500)
-	}
-});
-
-io.on('invalid-login', function(data) {
-});
-
-io.on('error', function(data) {
-	
-});
-
-
-
-//WebRTC Stuff
-
-function trace(text) {
-	console.log((performance.now() / 1000).toFixed(3) + ": " + text);
-}
-
-function createConnection(remote_peer) {
-	createSendConn();
-	createReceiveConn(remote_peer);
-}
-
-function creatSendConn() {
-
-	var servers = null;
-	window.localPeerConnection = new webkitRTCPeerConnection(servers,
-		{optional: [{RtpDataChannels: true}]});
-	trace('Created local peer connection object localPeerConnection');
-
-	try {
-		// Reliable Data Channels not yet supported in Chrome
-		sendChannel = localPeerConnection.createDataChannel("sendDataChannel",
-			{reliable: false});
-		trace('Created send data channel');
-	} catch (e) {
-		alert('Failed to create data channel. ' +
-					'You need Chrome M25 or later with RtpDataChannel enabled');
-		trace('createDataChannel() failed with exception: ' + e.message);
-	}
-	localPeerConnection.onicecandidate = gotLocalCandidate;
-	sendChannel.onopen = handleSendChannelStateChange;
-	sendChannel.onclose = handleSendChannelStateChange;
-}
-
-function createReceiveConn(remote_peer) {
-
-	window.remotePeerConnection = new webkitRTCPeerConnection(servers,
-		{optional: [{RtpDataChannels: true}]});
-	trace('Created remote peer connection object remotePeerConnection');
-
-	remotePeerConnection.onicecandidate = gotRemoteIceCandidate;
-	remotePeerConnection.ondatachannel = gotReceiveChannel;
-
-	localPeerConnection.createOffer(gotLocalDescription,handleError);
-//	startButton.disabled = true;
-//	closeButton.disabled = false;
-}
-
-function sendData(data) {
-//	var data = document.getElementById("dataChannelSend").value;
-	sendChannel.send(data);
-	trace('Sent data: ' + data);
-}
-
-function closeDataChannels() {
-	trace('Closing data channels');
-	sendChannel.close();
-	trace('Closed data channel with label: ' + sendChannel.label);
-	receiveChannel.close();
-	trace('Closed data channel with label: ' + receiveChannel.label);
-	localPeerConnection.close();
-	remotePeerConnection.close();
-	localPeerConnection = null;
-	remotePeerConnection = null;
-	trace('Closed peer connections');
-//	startButton.disabled = false;
-//	sendButton.disabled = true;
-//	closeButton.disabled = true;
-//	dataChannelSend.value = "";
-//	dataChannelReceive.value = "";
-//	dataChannelSend.disabled = true;
-//	dataChannelSend.placeholder = "Press Start, enter some text, then press Send.";
-}
-
-function gotLocalDescription(desc) {
-	localPeerConnection.setLocalDescription(desc);
-	trace('Offer from localPeerConnection \n' + desc.sdp);
-	remotePeerConnection.setRemoteDescription(desc);
-	remotePeerConnection.createAnswer(gotRemoteDescription,handleError);
-}
-
-function gotRemoteDescription(desc) {
-	remotePeerConnection.setLocalDescription(desc);
-	trace('Answer from remotePeerConnection \n' + desc.sdp);
-	localPeerConnection.setRemoteDescription(desc);
-}
-
-function gotLocalCandidate(event) {
-	trace('local ice callback');
-	if (event.candidate) {
-		remotePeerConnection.addIceCandidate(event.candidate);
-		trace('Local ICE candidate: \n' + event.candidate.candidate);
-	}
-}
-
-function gotRemoteIceCandidate(event) {
-	trace('remote ice callback');
-	if (event.candidate) {
-		localPeerConnection.addIceCandidate(event.candidate);
-		trace('Remote ICE candidate: \n ' + event.candidate.candidate);
-	}
-}
-
-function gotReceiveChannel(event) {
-	trace('Receive Channel Callback');
-	receiveChannel = event.channel;
-	receiveChannel.onmessage = handleMessage;
-	receiveChannel.onopen = handleReceiveChannelStateChange;
-	receiveChannel.onclose = handleReceiveChannelStateChange;
-}
-
-function handleMessage(event) {
-	trace('Received message: ' + event.data);
-//	document.getElementById("dataChannelReceive").value = event.data;
-	var arrayToStoreChunks = [];
-	dataChannel.onmessage = function (event) {
-		var data = JSON.parse(event.data);
-
-		arrayToStoreChunks.push(data.message); // pushing chunks in array
-
-		if (data.last) {
-			saveToDisk(arrayToStoreChunks.join(''), 'fake fileName');
-			arrayToStoreChunks = []; // resetting array
-		}
-	};
-}
-
-function handleSendChannelStateChange() {
-	var readyState = sendChannel.readyState;
-	trace('Send channel state is: ' + readyState);
-	if (readyState == "open") {
-		dataChannelSend.disabled = false;
-		dataChannelSend.focus();
-		dataChannelSend.placeholder = "";
-		sendButton.disabled = false;
-		closeButton.disabled = false;
-	} else {
-		dataChannelSend.disabled = true;
-		sendButton.disabled = true;
-		closeButton.disabled = true;
-	}
-}
-
-function handleReceiveChannelStateChange() {
-	var readyState = receiveChannel.readyState;
-	trace('Receive channel state is: ' + readyState);
-}
-
-function handleError(){}
 
 </script>
 
